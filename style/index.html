@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productiv — Personal Productivity Hub</title>
+  <meta name="description" content="Offline personal productivity app with tasks, habits, notes, goals and more.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-container">
+    <div class="login-brand">
+      <h1>⚡ Productiv</h1>
+      <p>Your Personal Productivity Hub</p>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="switchLoginTab('normal')">🔑 Normal</button>
+      <button class="login-tab" onclick="switchLoginTab('crazy')">🤪 Crazy</button>
+    </div>
+
+    <!-- Normal Login -->
+    <div class="login-panel active" id="loginNormal">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="loginUser" placeholder="Enter username" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPass" placeholder="Enter password">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="normalLogin()">Login</button>
+      <button class="btn btn-secondary btn-full" onclick="normalSignup()" style="margin-top:8px">Create Account</button>
+    </div>
+
+    <!-- Crazy Login -->
+    <div class="login-panel" id="loginCrazy">
+      <div class="crazy-method-tabs">
+        <button class="crazy-tab active" onclick="switchCrazyMethod('dot')">🔵 Dots</button>
+        <button class="crazy-tab" onclick="switchCrazyMethod('emoji')">😎 Emoji</button>
+        <button class="crazy-tab" onclick="switchCrazyMethod('color')">🎨 Color</button>
+        <button class="crazy-tab" onclick="switchCrazyMethod('dynamic')">⏰ Time</button>
+      </div>
+
+      <!-- Dot Pattern -->
+      <div class="crazy-panel active" id="crazyDot">
+        <p class="crazy-hint">Click dots in your secret pattern</p>
+        <div class="dot-grid" id="dotGrid"></div>
+        <div class="crazy-actions">
+          <button class="btn btn-secondary btn-sm" onclick="clearDotPattern()">Clear</button>
+          <button class="btn btn-primary btn-sm" onclick="submitDotLogin()">Unlock</button>
+        </div>
+      </div>
+
+      <!-- Emoji Sequence -->
+      <div class="crazy-panel" id="crazyEmoji">
+        <p class="crazy-hint">Tap emojis in your secret order</p>
+        <div class="emoji-grid" id="emojiGrid"></div>
+        <div class="crazy-sequence" id="emojiSequence"></div>
+        <div class="crazy-actions">
+          <button class="btn btn-secondary btn-sm" onclick="clearEmojiPattern()">Clear</button>
+          <button class="btn btn-primary btn-sm" onclick="submitEmojiLogin()">Unlock</button>
+        </div>
+      </div>
+
+      <!-- Color Pattern -->
+      <div class="crazy-panel" id="crazyColor">
+        <p class="crazy-hint">Click colors in your secret order</p>
+        <div class="color-grid" id="colorGrid"></div>
+        <div class="crazy-sequence" id="colorSequence"></div>
+        <div class="crazy-actions">
+          <button class="btn btn-secondary btn-sm" onclick="clearColorPattern()">Clear</button>
+          <button class="btn btn-primary btn-sm" onclick="submitColorLogin()">Unlock</button>
+        </div>
+      </div>
+
+      <!-- Dynamic Time Password -->
+      <div class="crazy-panel" id="crazyDynamic">
+        <p class="crazy-hint">Password = Current HHMM + your base secret</p>
+        <div class="dynamic-clock" id="dynamicClock">--:--</div>
+        <div class="form-group">
+          <input type="password" id="dynamicPassInput" placeholder="Enter time-based password">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="submitDynamicLogin()">Unlock</button>
+      </div>
+    </div>
+
+    <div class="login-skip">
+      <button class="btn-link" onclick="skipLogin()">Skip → Enter as Guest</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MAIN APP ========== -->
+<div class="app-wrapper" id="appWrapper" style="display:none">
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <h1>⚡ Productiv</h1>
+    <p>Your Productivity Hub</p>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" data-page="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-item" data-page="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      Tasks
+    </button>
+    <button class="nav-item" data-page="habits">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+      Habits
+    </button>
+    <button class="nav-item" data-page="notes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      Notes
+    </button>
+    <button class="nav-item" data-page="secret-notes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      🔒 Secret Notes
+    </button>
+    <button class="nav-item" data-page="goals">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Goals
+    </button>
+    <button class="nav-item" data-page="analytics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      Analytics
+    </button>
+    <button class="nav-item" data-page="calendar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Calendar
+    </button>
+    <button class="nav-item" data-page="pomodoro">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Pomodoro
+    </button>
+    <button class="nav-item" data-page="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <div class="theme-toggle" onclick="toggleTheme()">
+      <span id="themeIcon">🌙</span>
+      <span id="themeLabel">Dark Mode</span>
+    </div>
+    <div class="sidebar-stats">
+      <div class="stat-pill"><span class="stat-icon">🏆</span>Points<span class="stat-value" id="sidebarPoints">0</span></div>
+      <div class="stat-pill"><span class="stat-icon">🔥</span>Best Streak<span class="stat-value" id="sidebarStreak">0</span></div>
+    </div>
+    <button class="btn btn-secondary btn-sm btn-full" onclick="logoutApp()" style="margin-top:8px">🚪 Logout</button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main-content">
+
+  <!-- ===== DASHBOARD ===== -->
+  <section class="page active" id="page-dashboard">
+    <div class="top-bar">
+      <h2>Dashboard</h2>
+      <div class="top-bar-actions">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="globalSearch" placeholder="Search tasks & notes...">
+        </div>
+      </div>
+    </div>
+
+    <!-- Motivational Quote -->
+    <div class="quote-banner" id="quoteBanner">
+      <div class="quote-text" id="quoteText">"The secret of getting ahead is getting started."</div>
+      <div class="quote-author" id="quoteAuthor">— Mark Twain</div>
+    </div>
+
+    <div class="dashboard-stats">
+      <div class="stat-card gold"><div class="stat-label">Total Points</div><div class="stat-number" id="dashPoints">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Completed Today</div><div class="stat-number" id="dashCompleted">0</div></div>
+      <div class="stat-card blue"><div class="stat-label">Pending Tasks</div><div class="stat-number" id="dashPending">0</div></div>
+      <div class="stat-card purple"><div class="stat-label">Active Streaks</div><div class="stat-number" id="dashStreaks">0</div></div>
+    </div>
+
+    <!-- Mini Analytics Widget -->
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-header"><h3>Today's Tasks</h3></div>
+        <div id="dashTasks"></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><h3>Weekly Activity</h3></div>
+          <div class="mini-chart" id="dashChart"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><h3>Habit Streaks</h3></div>
+          <div id="dashHabits"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Goals Progress</h3></div>
+          <div id="dashGoals"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TASKS ===== -->
+  <section class="page" id="page-tasks">
+    <div class="top-bar">
+      <h2>Task Manager</h2>
+      <div class="top-bar-actions">
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="today">Today</button>
+          <button class="filter-btn" data-filter="completed">Completed</button>
+          <button class="filter-btn" data-filter="archived">Archived</button>
+        </div>
+        <button class="btn btn-primary" onclick="openTaskModal()">+ Add Task</button>
+      </div>
+    </div>
+    <div class="matrix-grid" id="matrixGrid">
+      <div class="matrix-col" data-quadrant="urgent-important">
+        <div class="matrix-col-header"><span class="dot red"></span><h4>Urgent & Important</h4><span class="count" id="count-ui">0</span></div>
+        <div class="matrix-tasks" id="tasks-urgent-important"></div>
+      </div>
+      <div class="matrix-col" data-quadrant="not-urgent-important">
+        <div class="matrix-col-header"><span class="dot orange"></span><h4>Not Urgent & Important</h4><span class="count" id="count-nui">0</span></div>
+        <div class="matrix-tasks" id="tasks-not-urgent-important"></div>
+      </div>
+      <div class="matrix-col" data-quadrant="urgent-not-important">
+        <div class="matrix-col-header"><span class="dot blue"></span><h4>Urgent & Not Important</h4><span class="count" id="count-uni">0</span></div>
+        <div class="matrix-tasks" id="tasks-urgent-not-important"></div>
+      </div>
+      <div class="matrix-col" data-quadrant="not-urgent-not-important">
+        <div class="matrix-col-header"><span class="dot gray"></span><h4>Not Urgent & Not Important</h4><span class="count" id="count-nuni">0</span></div>
+        <div class="matrix-tasks" id="tasks-not-urgent-not-important"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== HABITS ===== -->
+  <section class="page" id="page-habits">
+    <div class="top-bar">
+      <h2>Habit Tracker</h2>
+      <div class="top-bar-actions">
+        <button class="btn btn-primary" onclick="openHabitModal()">+ New Habit</button>
+      </div>
+    </div>
+    <div id="habitsList"></div>
+  </section>
+
+  <!-- ===== NOTES (Full WYSIWYG) ===== -->
+  <section class="page" id="page-notes">
+    <div class="top-bar">
+      <h2>Notes</h2>
+      <div class="top-bar-actions">
+        <button class="btn btn-primary" onclick="createNewNote()">+ New Note</button>
+      </div>
+    </div>
+    <div class="notes-layout">
+      <div class="notes-sidebar" id="notesSidebar"></div>
+      <div class="notes-editor-area">
+        <div class="editor-placeholder" id="editorPlaceholder">
+          <div class="empty-icon">📝</div>
+          <p>Select a note or create a new one</p>
+        </div>
+        <div class="editor-wrapper hidden" id="editorWrapper">
+          <input type="text" class="editor-title-input" id="editorTitle" placeholder="Note title..." oninput="autoSaveNote()">
+          <div class="editor-toolbar" id="editorToolbar">
+            <select onchange="execCmd('fontName',this.value);this.selectedIndex=0" title="Font">
+              <option value="">Font</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Verdana">Verdana</option>
+              <option value="Trebuchet MS">Trebuchet MS</option>
+              <option value="Impact">Impact</option>
+              <option value="Comic Sans MS">Comic Sans MS</option>
+            </select>
+            <select onchange="execCmd('fontSize',this.value);this.selectedIndex=0" title="Size">
+              <option value="">Size</option>
+              <option value="1">Tiny</option>
+              <option value="2">Small</option>
+              <option value="3">Normal</option>
+              <option value="4">Large</option>
+              <option value="5">Huge</option>
+              <option value="6">Massive</option>
+              <option value="7">Giant</option>
+            </select>
+            <div class="toolbar-sep"></div>
+            <button onclick="execCmd('bold')" title="Bold"><b>B</b></button>
+            <button onclick="execCmd('italic')" title="Italic"><i>I</i></button>
+            <button onclick="execCmd('underline')" title="Underline"><u>U</u></button>
+            <button onclick="execCmd('strikeThrough')" title="Strikethrough"><s>S</s></button>
+            <div class="toolbar-sep"></div>
+            <button onclick="execCmd('justifyLeft')" title="Align Left">⫷</button>
+            <button onclick="execCmd('justifyCenter')" title="Center">≡</button>
+            <button onclick="execCmd('justifyRight')" title="Align Right">⫸</button>
+            <div class="toolbar-sep"></div>
+            <button onclick="execCmd('insertUnorderedList')" title="Bullet List">•≡</button>
+            <button onclick="execCmd('insertOrderedList')" title="Numbered List">1.</button>
+            <div class="toolbar-sep"></div>
+            <input type="color" onchange="execCmd('foreColor',this.value)" title="Text Color" value="#e8e0d4" style="width:28px;height:28px;padding:0;border:none;cursor:pointer">
+            <input type="color" onchange="execCmd('hiliteColor',this.value)" title="Highlight" value="#f59e0b" style="width:28px;height:28px;padding:0;border:none;cursor:pointer">
+            <div class="toolbar-sep"></div>
+            <button onclick="execCmd('removeFormat')" title="Clear Format">✕</button>
+            <button onclick="insertHR()" title="Horizontal Rule">—</button>
+            <select onchange="addBorderStyle(this.value);this.selectedIndex=0" title="Borders">
+              <option value="">Border</option>
+              <option value="1px solid #374151">Thin</option>
+              <option value="2px solid #f59e0b">Gold</option>
+              <option value="3px dashed #22c55e">Dashed Green</option>
+              <option value="2px double #3b82f6">Double Blue</option>
+              <option value="none">Remove</option>
+            </select>
+            <select onchange="addShadowStyle(this.value);this.selectedIndex=0" title="Shadows">
+              <option value="">Shadow</option>
+              <option value="0 2px 8px rgba(0,0,0,0.3)">Soft</option>
+              <option value="0 4px 16px rgba(245,158,11,0.3)">Gold Glow</option>
+              <option value="4px 4px 0 #374151">Hard</option>
+              <option value="none">Remove</option>
+            </select>
+          </div>
+          <div class="editor-content" contenteditable="true" id="editorContent" oninput="autoSaveNote()"></div>
+          <div class="editor-footer">
+            <span class="editor-note-color">
+              Color: <input type="color" id="editorNoteColor" onchange="updateNoteColor(this.value)" value="#f59e0b">
+            </span>
+            <button class="btn btn-sm btn-danger" onclick="deleteCurrentNote()">Delete Note</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SECRET NOTES ===== -->
+  <section class="page" id="page-secret-notes">
+    <div class="top-bar">
+      <h2>🔒 Secret Notes</h2>
+      <div class="top-bar-actions">
+        <button class="btn btn-primary" id="secretAddBtn" onclick="createNewSecretNote()" style="display:none">+ New Secret Note</button>
+      </div>
+    </div>
+    <div id="secretNotesLock">
+      <div class="secret-lock-container">
+        <div class="lock-icon">🔐</div>
+        <h3>Encrypted Notes Vault</h3>
+        <p>Authenticate to access your secret notes</p>
+        <div class="crazy-method-tabs" style="margin:20px 0">
+          <button class="crazy-tab active" onclick="switchSecretMethod('dot')">🔵 Dots</button>
+          <button class="crazy-tab" onclick="switchSecretMethod('emoji')">😎 Emoji</button>
+          <button class="crazy-tab" onclick="switchSecretMethod('color')">🎨 Color</button>
+          <button class="crazy-tab" onclick="switchSecretMethod('dynamic')">⏰ Time</button>
+        </div>
+        <div class="secret-auth-area" id="secretAuthArea"></div>
+      </div>
+    </div>
+    <div id="secretNotesContent" style="display:none">
+      <div class="notes-layout">
+        <div class="notes-sidebar" id="secretNotesSidebar"></div>
+        <div class="notes-editor-area">
+          <div class="editor-placeholder" id="secretEditorPlaceholder">
+            <div class="empty-icon">🔒</div>
+            <p>Select a secret note or create a new one</p>
+          </div>
+          <div class="editor-wrapper hidden" id="secretEditorWrapper">
+            <input type="text" class="editor-title-input" id="secretEditorTitle" placeholder="Secret note title..." oninput="autoSaveSecretNote()">
+            <div class="editor-toolbar" id="secretEditorToolbar">
+              <button onclick="execCmdSecret('bold')" title="Bold"><b>B</b></button>
+              <button onclick="execCmdSecret('italic')" title="Italic"><i>I</i></button>
+              <button onclick="execCmdSecret('underline')" title="Underline"><u>U</u></button>
+              <div class="toolbar-sep"></div>
+              <input type="color" onchange="execCmdSecret('foreColor',this.value)" title="Text Color" value="#e8e0d4" style="width:28px;height:28px;padding:0;border:none;cursor:pointer">
+              <button onclick="execCmdSecret('removeFormat')" title="Clear Format">✕</button>
+            </div>
+            <div class="editor-content" contenteditable="true" id="secretEditorContent" oninput="autoSaveSecretNote()"></div>
+            <div class="editor-footer">
+              <span style="font-size:0.75rem;color:var(--text-muted)">🔐 Encrypted with AES-256</span>
+              <button class="btn btn-sm btn-danger" onclick="deleteCurrentSecretNote()">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GOALS ===== -->
+  <section class="page" id="page-goals">
+    <div class="top-bar">
+      <h2>Long-Term Goals</h2>
+      <div class="top-bar-actions">
+        <button class="btn btn-primary" onclick="openGoalModal()">+ New Goal</button>
+      </div>
+    </div>
+    <div id="goalsList"></div>
+  </section>
+
+  <!-- ===== ANALYTICS ===== -->
+  <section class="page" id="page-analytics">
+    <div class="top-bar"><h2>Analytics & Insights</h2></div>
+    <div class="analytics-stats">
+      <div class="stat-card gold"><div class="stat-label">Total Points</div><div class="stat-number" id="anPoints">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Tasks Done</div><div class="stat-number" id="anTasksDone">0</div></div>
+      <div class="stat-card blue"><div class="stat-label">Habits Tracked</div><div class="stat-number" id="anHabitsCount">0</div></div>
+      <div class="stat-card purple"><div class="stat-label">Pomodoro Sessions</div><div class="stat-number" id="anPomSessions">0</div></div>
+    </div>
+    <div class="analytics-grid">
+      <div class="card">
+        <div class="card-header"><h3>Task Completion (Last 7 Days)</h3></div>
+        <div class="chart-container" id="chartTaskCompletion"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Habit Streaks</h3></div>
+        <div class="chart-container" id="chartHabitStreaks"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Productivity Score</h3></div>
+        <div class="score-ring-container" id="productivityScore"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Points History</h3></div>
+        <div class="chart-container" id="chartPointsHistory"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CALENDAR ===== -->
+  <section class="page" id="page-calendar">
+    <div class="top-bar">
+      <h2>Calendar</h2>
+      <div class="top-bar-actions">
+        <button class="btn btn-secondary btn-sm" onclick="calNavMonth(-1)">← Prev</button>
+        <span class="cal-month-label" id="calMonthLabel"></span>
+        <button class="btn btn-secondary btn-sm" onclick="calNavMonth(1)">Next →</button>
+      </div>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+    <div class="cal-day-detail card" id="calDayDetail" style="display:none;margin-top:16px">
+      <div class="card-header"><h3 id="calDayTitle">Events</h3></div>
+      <div id="calDayContent"></div>
+    </div>
+  </section>
+
+  <!-- ===== POMODORO ===== -->
+  <section class="page" id="page-pomodoro">
+    <div class="top-bar"><h2>Pomodoro Timer</h2></div>
+    <div class="pomodoro-container">
+      <div class="pomodoro-circle" id="pomodoroCircle">
+        <div class="pomodoro-time" id="pomodoroTime">25:00</div>
+        <div class="pomodoro-label" id="pomodoroLabel">Focus</div>
+      </div>
+      <div class="pomodoro-controls">
+        <button class="btn btn-primary" id="pomodoroStartBtn" onclick="togglePomodoro()">Start</button>
+        <button class="btn btn-secondary" onclick="resetPomodoro()">Reset</button>
+        <button class="btn btn-secondary" onclick="skipPomodoro()">Skip</button>
+      </div>
+      <div style="margin-top:24px;display:flex;gap:24px;align-items:center">
+        <div class="stat-pill"><span class="stat-icon">🍅</span>Sessions<span class="stat-value" id="pomodoroSessions">0</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:0.8rem;color:var(--text-muted)">Minutes:</label>
+          <input type="number" id="pomodoroMinInput" value="25" min="1" max="120" style="width:64px">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section class="page" id="page-settings">
+    <div class="top-bar"><h2>Settings</h2></div>
+
+    <div class="settings-section">
+      <h3>🎨 Appearance</h3>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Theme</h4><p>Switch between light and dark mode</p></div>
+        <button class="btn btn-secondary" onclick="toggleTheme()" id="settingsThemeBtn">🌙 Dark</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Accent Color</h4><p>Choose your primary accent color</p></div>
+        <div class="accent-colors" id="accentColors">
+          <button class="accent-dot" style="background:#f59e0b" onclick="setAccentColor('#f59e0b','#f97316')"></button>
+          <button class="accent-dot" style="background:#3b82f6" onclick="setAccentColor('#3b82f6','#6366f1')"></button>
+          <button class="accent-dot" style="background:#22c55e" onclick="setAccentColor('#22c55e','#16a34a')"></button>
+          <button class="accent-dot" style="background:#ef4444" onclick="setAccentColor('#ef4444','#f97316')"></button>
+          <button class="accent-dot" style="background:#8b5cf6" onclick="setAccentColor('#8b5cf6','#a855f7')"></button>
+          <button class="accent-dot" style="background:#ec4899" onclick="setAccentColor('#ec4899','#f43f5e')"></button>
+          <button class="accent-dot" style="background:#06b6d4" onclick="setAccentColor('#06b6d4','#0ea5e9')"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>🔐 Security & Login</h3>
+      <div class="settings-row">
+        <div class="settings-info"><h4>App Lock</h4><p>Require login when opening the app</p></div>
+        <button class="btn btn-secondary" id="settingsAppLock" onclick="toggleAppLock()">Off</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Secret Notes Lock Method</h4><p>Choose how to protect your encrypted notes</p></div>
+        <select id="settingsSecretMethod" onchange="updateSecretMethod(this.value)" style="width:160px">
+          <option value="dot">🔵 Dot Pattern</option>
+          <option value="emoji">😎 Emoji Sequence</option>
+          <option value="color">🎨 Color Pattern</option>
+          <option value="dynamic">⏰ Dynamic Time</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Change Password</h4><p>Update your normal login password</p></div>
+        <button class="btn btn-secondary" onclick="openChangePassword()">Change</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Set Dot Pattern</h4><p>Configure your dot grid login pattern</p></div>
+        <button class="btn btn-secondary" onclick="openSetPattern('dot')">Configure</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Set Emoji Sequence</h4><p>Configure your emoji login sequence</p></div>
+        <button class="btn btn-secondary" onclick="openSetPattern('emoji')">Configure</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Set Color Pattern</h4><p>Configure your color login pattern</p></div>
+        <button class="btn btn-secondary" onclick="openSetPattern('color')">Configure</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Set Dynamic Base Password</h4><p>Your base password for time-based auth (HHMM + base)</p></div>
+        <button class="btn btn-secondary" onclick="openSetDynamicBase()">Configure</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>💪 Habits Configuration</h3>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Default Points</h4><p>Default points for new habits</p></div>
+        <input type="number" id="settingsDefaultPoints" value="5" min="1" max="100" style="width:80px" onchange="APP.settings.defaultHabitPoints=parseInt(this.value)||5;saveData(APP)">
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Break Duration (minutes)</h4><p>Pomodoro break length</p></div>
+        <input type="number" id="settingsBreakMin" value="5" min="1" max="30" style="width:80px" onchange="APP.settings.breakMinutes=parseInt(this.value)||5;saveData(APP)">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>🍅 Pomodoro</h3>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Default Duration</h4><p>Set default focus time in minutes</p></div>
+        <input type="number" id="settingsPomMinutes" value="25" min="1" max="120" style="width:80px" onchange="updatePomodoroSetting(this.value)">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>📦 Data Management</h3>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Export Data</h4><p>Download all your data as a JSON file</p></div>
+        <button class="btn btn-secondary" onclick="exportData()">Export JSON</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Import Data</h4><p>Restore data from a JSON file</p></div>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-info"><h4>Reset All Data</h4><p>Delete everything and start fresh</p></div>
+        <button class="btn btn-danger" onclick="confirmReset()">Reset Data</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+</div><!-- end app-wrapper -->
+
+<!-- FAB -->
+<button class="fab" id="fabBtn" onclick="quickAdd()" title="Quick Add" style="display:none">+</button>
+
+<!-- MODAL -->
+<div class="modal-overlay hidden" id="modalOverlay" onclick="event.target===this&&closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
