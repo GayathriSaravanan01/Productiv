@@ -657,17 +657,24 @@ function closeModal() {
 // ===== DASHBOARD =====
 function renderDashboard() {
   showQuote();
+
   const todayStr = today();
+
   const completedToday = APP.tasks.filter(
-    (t) => t.completed && t.completedAt && t.completedAt.startsWith(todayStr),
+    (t) => t.completed && t.completedAt && t.completedAt.startsWith(todayStr)
   ).length;
-  const pending = APP.tasks.filter((t) => !t.completed && !t.archived).length;
+
+  // ✅ removed archived condition
+  const pending = APP.tasks.filter((t) => !t.completed).length;
+
   const activeStreaks = APP.habits.filter((h) => h.streak > 0).length;
+
   const bestStreak = APP.habits.reduce(
     (max, h) => Math.max(max, h.bestStreak || 0),
-    0,
+    0
   );
 
+  // ===== STATS =====
   document.getElementById("dashPoints").textContent = APP.totalPoints;
   document.getElementById("dashCompleted").textContent = completedToday;
   document.getElementById("dashPending").textContent = pending;
@@ -675,11 +682,13 @@ function renderDashboard() {
   document.getElementById("sidebarPoints").textContent = APP.totalPoints;
   document.getElementById("sidebarStreak").textContent = bestStreak;
 
-  // Today's tasks
+  // ===== TODAY TASKS =====
   const todayTasks = APP.tasks
-    .filter((t) => !t.completed && !t.archived)
+    .filter((t) => !t.completed) // ✅ removed archived
     .slice(0, 5);
+
   const dashTasks = document.getElementById("dashTasks");
+
   if (!todayTasks.length) {
     dashTasks.innerHTML =
       '<div class="empty-state"><div class="empty-icon">✅</div><p>No pending tasks!</p></div>';
@@ -689,21 +698,28 @@ function renderDashboard() {
         (t) => `
       <div class="task-item">
         <button class="task-check" onclick="toggleTask('${t.id}')"></button>
+
         <div class="task-info">
           <div class="task-title">${esc(t.title)}</div>
-          ${t.deadline ? `<div class="task-meta">Due: ${t.deadline}</div>` : ""}
+
+          ${
+            t.deadline
+              ? `<div class="task-meta">Due: ${t.deadline}</div>`
+              : ""
+          }
         </div>
       </div>
-    `,
+    `
       )
       .join("");
   }
 
-  // Weekly activity chart
+  // ===== CHART =====
   renderDashChart();
 
-  // Habits
+  // ===== HABITS =====
   const dashHabits = document.getElementById("dashHabits");
+
   if (!APP.habits.length) {
     dashHabits.innerHTML =
       '<div class="empty-state" style="padding:16px"><p>No habits yet</p></div>';
@@ -716,13 +732,14 @@ function renderDashboard() {
         <span style="font-size:0.85rem">${esc(h.title)}</span>
         <span style="font-family:var(--font-mono);color:var(--streak);font-weight:700">🔥 ${h.streak}</span>
       </div>
-    `,
+    `
       )
       .join("");
   }
 
-  // Goals
+  // ===== GOALS =====
   const dashGoals = document.getElementById("dashGoals");
+
   if (!APP.longTermGoals.length) {
     dashGoals.innerHTML =
       '<div class="empty-state" style="padding:16px"><p>No goals yet</p></div>';
@@ -736,9 +753,12 @@ function renderDashboard() {
           <span>${esc(g.title)}</span>
           <span style="font-family:var(--font-mono);color:var(--primary);font-weight:600">${g.progress}%</span>
         </div>
-        <div class="progress-bar"><div class="fill gold" style="width:${g.progress}%"></div></div>
+
+        <div class="progress-bar">
+          <div class="fill gold" style="width:${g.progress}%"></div>
+        </div>
       </div>
-    `,
+    `
       )
       .join("");
   }
@@ -789,49 +809,139 @@ function renderTasks() {
     "urgent-not-important",
     "not-urgent-not-important",
   ];
+
   const countIds = ["count-ui", "count-nui", "count-uni", "count-nuni"];
-  const todayStr = today();
 
   quadrants.forEach((q, i) => {
     let tasks = APP.tasks.filter((t) => t.quadrant === q);
-    if (taskFilter === "today")
-      tasks = tasks.filter(
-        (t) => (t.deadline === todayStr || !t.deadline) && !t.archived,
+
+    // ✅ FILTER LOGIC
+    if (taskFilter === "all") {
+      tasks = tasks.filter((t) =>
+        isWithinLast7Days(t.deadline)
       );
-    else if (taskFilter === "completed")
-      tasks = tasks.filter((t) => t.completed);
-    else if (taskFilter === "archived") tasks = tasks.filter((t) => t.archived);
-    else tasks = tasks.filter((t) => !t.archived);
+    }
+
+    else if (taskFilter === "completed") {
+      tasks = tasks.filter((t) =>
+        t.completed && isWithinLast7Days(t.deadline)
+      );
+    }
+
+    else if (taskFilter === "incomplete") {
+      tasks = tasks.filter((t) =>
+        !t.completed &&
+        (
+          isWithinLast7Days(t.deadline) ||
+          isFuture(t.deadline)
+        )
+      );
+    }
+
+    // ✅ SORT BY DEADLINE (ASC)
+    tasks.sort((a, b) => {
+      if (!a.deadline) return 1;
+      if (!b.deadline) return -1;
+      return new Date(a.deadline) - new Date(b.deadline);
+    });
 
     const container = document.getElementById("tasks-" + q);
+
+    // ✅ COUNT (only incomplete)
     document.getElementById(countIds[i]).textContent = tasks.filter(
-      (t) => !t.completed && !t.archived,
+      (t) => !t.completed
     ).length;
 
     if (!tasks.length) {
       container.innerHTML =
-        '<div class="empty-state" style="padding:20px"><p style="font-size:0.8rem">No tasks</p></div>';
+        '<div class="empty-state"><p style="font-size:0.8rem">No tasks</p></div>';
       return;
     }
 
+    // ✅ RENDER
     container.innerHTML = tasks
-      .map(
-        (t) => `
-      <div class="matrix-task ${t.completed ? "completed" : ""}" draggable="true" data-id="${t.id}"
-           ondragstart="dragTask(event,'${t.id}')">
-        <button class="task-check ${t.completed ? "checked" : ""}" onclick="toggleTask('${t.id}')">${t.completed ? "✓" : ""}</button>
-        <span class="matrix-task-title">${esc(t.title)}</span>
-        ${t.deadline ? `<span class="matrix-task-deadline">${t.deadline}</span>` : ""}
-        <div class="task-actions">
-          ${t.completed && !t.archived ? `<button class="btn-icon" onclick="archiveTask('${t.id}')" title="Archive" style="width:28px;height:28px;font-size:12px">📦</button>` : ""}
-          <button class="btn-icon" onclick="editTask('${t.id}')" style="width:28px;height:28px;font-size:12px">✎</button>
-          <button class="btn-icon" onclick="deleteTask('${t.id}')" style="width:28px;height:28px;font-size:12px">✕</button>
+      .map((t) => {
+
+        const showStrike =
+          taskFilter === "all" && t.completed;
+
+        const overdue = isOverdue(t.deadline, t.completed);
+
+        return `
+        <div class="matrix-task ${showStrike ? "completed" : ""}" 
+             draggable="true" 
+             data-id="${t.id}"
+             ondragstart="dragTask(event,'${t.id}')">
+
+          <!-- ✔ CHECK -->
+          <button class="task-check ${t.completed ? "checked" : ""}" 
+                  onclick="toggleTask('${t.id}')">
+            ${t.completed ? "✓" : ""}
+          </button>
+
+          <!-- TITLE -->
+          <span class="matrix-task-title ${overdue ? "overdue-text" : ""}">
+            ${esc(t.title)}
+          </span>
+
+          <!-- DEADLINE + OVERDUE -->
+          <span class="matrix-task-deadline">
+            ${
+              overdue
+                ? `<span class="overdue-label">Overdue</span> ${t.deadline}`
+                : (t.deadline || "")
+            }
+          </span>
+
+          <!-- ACTIONS -->
+          <div class="task-actions" style="opacity:1;">
+           <button class="btn-icon" onclick="editTask('${t.id}')" title="Edit">✏️</button>
+<button class="btn-icon" onclick="deleteTask('${t.id}')" title="Delete">🗑️</button>
+          </div>
+
         </div>
-      </div>
-    `,
-      )
+        `;
+      })
       .join("");
   });
+}
+
+function isOverdue(dateStr, completed) {
+  if (!dateStr || completed) return false;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const taskDate = new Date(dateStr);
+  taskDate.setHours(0,0,0,0);
+
+  return taskDate < today;
+}
+
+function isWithinLast7Days(dateStr) {
+  if (!dateStr) return false;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const taskDate = new Date(dateStr);
+  taskDate.setHours(0,0,0,0);
+
+  const diff = (today - taskDate) / (1000 * 60 * 60 * 24);
+
+  return diff >= 0 && diff <= 6; // last 7 days incl today
+}
+
+function isFuture(dateStr) {
+  if (!dateStr) return false;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const taskDate = new Date(dateStr);
+  taskDate.setHours(0,0,0,0);
+
+  return taskDate > today;
 }
 
 // Drag & Drop
@@ -916,14 +1026,6 @@ function openTaskModal(editId) {
       <label>Deadline</label>
       <input type="date" id="taskDeadline" value="${task?.deadline || ""}">
     </div>
-    <div class="form-group">
-      <label>Recurring</label>
-      <select id="taskRecurring">
-        <option value="" ${!task?.recurring ? "selected" : ""}>None</option>
-        <option value="daily" ${task?.recurring === "daily" ? "selected" : ""}>Daily</option>
-        <option value="weekly" ${task?.recurring === "weekly" ? "selected" : ""}>Weekly</option>
-      </select>
-    </div>
     <div class="form-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveTask('${editId || ""}')">${task ? "Update" : "Create"}</button>
@@ -934,21 +1036,31 @@ function openTaskModal(editId) {
 function editTask(id) {
   openTaskModal(id);
 }
-
 function saveTask(editId) {
-  const title = document.getElementById("taskTitle").value.trim();
-  if (!title) return showToast("Title required", "error");
-  const quadrant = document.getElementById("taskQuadrant").value;
-  const deadline = document.getElementById("taskDeadline").value;
-  const recurring = document.getElementById("taskRecurring").value || null;
+  const title = document.getElementById('taskTitle').value.trim();
+  const quadrant = document.getElementById('taskQuadrant').value;
+  const deadline = document.getElementById('taskDeadline').value;
 
+  // ✅ VALIDATION
+  if (!title) {
+    return showToast('Title is required', 'error');
+  }
+
+  if (!quadrant) {
+    return showToast('Please select a quadrant', 'error');
+  }
+
+  if (!deadline) {
+    return showToast('Deadline is required', 'error');
+  }
+
+  // ✅ SAVE LOGIC
   if (editId) {
-    const t = APP.tasks.find((t) => t.id === editId);
+    const t = APP.tasks.find(t => t.id === editId);
     if (t) {
       t.title = title;
       t.quadrant = quadrant;
       t.deadline = deadline;
-      t.recurring = recurring;
     }
   } else {
     APP.tasks.push({
@@ -958,15 +1070,16 @@ function saveTask(editId) {
       completed: false,
       archived: false,
       deadline,
-      recurring,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
   }
+
   saveData(APP);
   closeModal();
   renderTasks();
-  showToast(editId ? "Task updated" : "Task created! 🚀");
+  showToast(editId ? 'Task updated' : 'Task created! 🚀');
 }
+
 
 // ===== HABITS =====
 function renderHabits() {

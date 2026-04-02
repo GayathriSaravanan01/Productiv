@@ -848,6 +848,11 @@ body {
   opacity: 0;
   transition: opacity 0.2s;
 }
+.task-actions .btn-icon {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
 
 .task-item:hover .task-actions {
   opacity: 1;
@@ -938,7 +943,27 @@ body {
   font-family: var(--font-mono);
 }
 .matrix-task .task-actions {
-  gap: 2px;
+  display: flex;
+  gap: 4px;
+  opacity: 1;
+}
+/* 🔴 Title red */
+.overdue-text {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* 🔴 "Overdue" label */
+.overdue-label {
+  color: var(--danger);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+/* Optional: full row highlight */
+.matrix-task.overdue {
+  border: 1px solid var(--danger);
+  background: var(--danger-glow);
 }
 
 .filter-bar {
