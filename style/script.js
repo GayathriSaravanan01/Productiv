@@ -624,6 +624,7 @@ function renderPage(page) {
       renderNotes();
       break;
     case "secret-notes":
+      openSecretNotes(); 
       renderSecretNotes();
       break;
     case "goals":
@@ -663,8 +664,6 @@ function renderDashboard() {
   const completedToday = APP.tasks.filter(
     (t) => t.completed && t.completedAt && t.completedAt.startsWith(todayStr)
   ).length;
-
-  // ✅ removed archived condition
   const pending = APP.tasks.filter((t) => !t.completed).length;
 
   const activeStreaks = APP.habits.filter((h) => h.streak > 0).length;
@@ -684,7 +683,7 @@ function renderDashboard() {
 
   // ===== TODAY TASKS =====
   const todayTasks = APP.tasks
-    .filter((t) => !t.completed) // ✅ removed archived
+    .filter((t) => !t.completed) 
     .slice(0, 5);
 
   const dashTasks = document.getElementById("dashTasks");
@@ -1084,22 +1083,25 @@ function saveTask(editId) {
 // ===== HABITS =====
 function renderHabits() {
   const list = document.getElementById("habitsList");
-  if (!APP.habits.length) {
+   const todayStr = today();
+
+const todayHabits = APP.habits.filter(h => 
+  isHabitForToday(h, todayStr)
+);
+  if (!todayHabits.length) {
     list.innerHTML =
       '<div class="empty-state"><div class="empty-icon">💪</div><p>No habits yet. Start building good habits!</p></div>';
     return;
   }
-  const todayStr = today();
-  list.innerHTML = APP.habits
-    .map((h) => {
+ 
+  list.innerHTML = todayHabits.map((h) =>  {
       const doneToday = h.completedDates && h.completedDates.includes(todayStr);
-      const skippedToday = h.skippedDates && h.skippedDates.includes(todayStr);
       return `
       <div class="habit-item">
-        <button class="habit-check-btn ${doneToday ? "done" : skippedToday ? "skipped" : ""}" 
-                onclick="completeHabit('${h.id}')">
-          ${doneToday ? "✓" : skippedToday ? "—" : ""}
-        </button>
+        <button class="habit-check-btn ${doneToday ? "done" : ""}" 
+        onclick="completeHabit('${h.id}')">
+  ${doneToday ? "✓" : ""}
+</button>
         <div class="habit-info">
           <h4>${esc(h.title)}</h4>
           <p>${h.frequency} · ${h.points} pts per completion</p>
@@ -1109,10 +1111,9 @@ function renderHabits() {
           <div class="habit-stat"><div class="value points">${h.points * (h.completedDates?.length || 0)}</div><div class="label">Points</div></div>
         </div>
         <div class="habit-actions">
-          <button class="btn-icon" onclick="skipHabit('${h.id}')" title="Skip" style="width:28px;height:28px;font-size:11px">⏭</button>
-          <button class="btn-icon" onclick="editHabit('${h.id}')" style="width:28px;height:28px;font-size:12px">✎</button>
-          <button class="btn-icon" onclick="deleteHabit('${h.id}')" style="width:28px;height:28px;font-size:12px">✕</button>
-        </div>
+  <button class="btn-icon" onclick="editHabit('${h.id}')" title="Edit">✏️</button>
+  <button class="btn-icon" onclick="deleteHabit('${h.id}')" title="Delete">🗑️</button>
+</div>
       </div>
     `;
     })
@@ -1123,11 +1124,9 @@ function completeHabit(id) {
   const h = APP.habits.find((h) => h.id === id);
   if (!h) return;
   if (!h.completedDates) h.completedDates = [];
-  if (!h.skippedDates) h.skippedDates = [];
   const todayStr = today();
   if (h.completedDates.includes(todayStr))
     return showToast("Already done today!");
-  h.skippedDates = h.skippedDates.filter((d) => d !== todayStr);
   h.completedDates.push(todayStr);
   h.streak = (h.streak || 0) + 1;
   h.bestStreak = Math.max(h.bestStreak || 0, h.streak);
@@ -1139,18 +1138,7 @@ function completeHabit(id) {
   showToast(`+${h.points} points! Streak: ${h.streak} 🔥`);
 }
 
-function skipHabit(id) {
-  const h = APP.habits.find((h) => h.id === id);
-  if (!h) return;
-  if (!h.skippedDates) h.skippedDates = [];
-  const todayStr = today();
-  if (h.completedDates?.includes(todayStr) || h.skippedDates.includes(todayStr))
-    return;
-  h.skippedDates.push(todayStr);
-  saveData(APP);
-  renderHabits();
-  showToast("Habit skipped");
-}
+
 
 function deleteHabit(id) {
   APP.habits = APP.habits.filter((h) => h.id !== id);
@@ -1158,50 +1146,94 @@ function deleteHabit(id) {
   renderHabits();
   showToast("Habit deleted");
 }
+function isHabitForToday(habit, todayStr) {
+  const todayDate = new Date(todayStr);
+  const day = todayDate.getDay(); // 0 = Sun, 1 = Mon...
 
+  if (habit.frequency === "daily") return true;
+
+  if (habit.frequency === "weekly") {
+    return habit.days && habit.days.includes(day);
+  }
+
+  return false;
+}
 function openHabitModal(editId) {
   const h = editId ? APP.habits.find((h) => h.id === editId) : null;
   const defaultPts = APP.settings.defaultHabitPoints || 5;
+
   openModal(`
     <h3>${h ? "Edit" : "New"} Habit</h3>
+
     <div class="form-group">
       <label>Habit Name</label>
-      <input type="text" id="habitTitle" value="${h ? esc(h.title) : ""}" placeholder="e.g. Drink 8 glasses of water">
+      <input type="text" id="habitTitle" value="${h ? esc(h.title) : ""}">
     </div>
+
     <div class="form-group">
       <label>Frequency</label>
-      <select id="habitFreq">
+      <select id="habitFreq" onchange="toggleWeekDays()">
         <option value="daily" ${h?.frequency === "daily" ? "selected" : ""}>Daily</option>
         <option value="weekly" ${h?.frequency === "weekly" ? "selected" : ""}>Weekly</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>Points per completion</label>
-      <input type="number" id="habitPoints" value="${h?.points || defaultPts}" min="1" max="100">
+
+    <div class="form-group" id="weekDaysBox" style="display:none">
+      <label>Select Days</label>
+      ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>`
+        <label>
+          <input type="checkbox" class="habitDay" value="${i}"
+            ${h?.days?.includes(i) ? "checked" : ""}> ${d}
+        </label>
+      `).join("")}
     </div>
+
+    <div class="form-group">
+      <label>Points</label>
+      <input type="number" id="habitPoints" value="${h?.points || defaultPts}">
+    </div>
+
     <div class="form-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveHabit('${editId || ""}')">${h ? "Update" : "Create"}</button>
+      <button class="btn btn-primary" onclick="saveHabit('${editId || ""}')">
+        ${h ? "Update" : "Create"}
+      </button>
     </div>
   `);
-}
 
-function editHabit(id) {
-  openHabitModal(id);
+  setTimeout(toggleWeekDays, 0);
 }
-
+function toggleWeekDays() {
+  const freq = document.getElementById("habitFreq").value;
+  document.getElementById("weekDaysBox").style.display =
+    freq === "weekly" ? "block" : "none";
+}
 function saveHabit(editId) {
   const title = document.getElementById("habitTitle").value.trim();
   if (!title) return showToast("Name required", "error");
+
   const frequency = document.getElementById("habitFreq").value;
   const points = parseInt(document.getElementById("habitPoints").value) || 5;
 
+  let days = [];
+
+  // ✅ only for weekly
+  if (frequency === "weekly") {
+    const checked = document.querySelectorAll(".habitDay:checked");
+    days = Array.from(checked).map(cb => parseInt(cb.value));
+
+    if (!days.length) {
+      return showToast("Select at least one day", "error");
+    }
+  }
+
   if (editId) {
-    const h = APP.habits.find((h) => h.id === editId);
+    const h = APP.habits.find(h => h.id === editId);
     if (h) {
       h.title = title;
       h.frequency = frequency;
       h.points = points;
+      h.days = days;
     }
   } else {
     APP.habits.push({
@@ -1209,17 +1241,29 @@ function saveHabit(editId) {
       title,
       frequency,
       points,
+      days,
       streak: 0,
       bestStreak: 0,
       completedDates: [],
-      skippedDates: [],
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     });
   }
+
   saveData(APP);
   closeModal();
   renderHabits();
+
   showToast(editId ? "Habit updated" : "Habit created! 💪");
+}
+
+
+function editHabit(id) {
+  openHabitModal(id);
+}
+function toggleWeekDays() {
+  const freq = document.getElementById("habitFreq").value;
+  document.getElementById("weekDaysBox").style.display =
+    freq === "weekly" ? "block" : "none";
 }
 
 // ===== NOTES (Full WYSIWYG) =====
@@ -1368,6 +1412,12 @@ function renderSecretNotes() {
     renderSecretAuth();
   }
 }
+let currentSecretMethod = null;
+
+function openSecretNotes() {
+  currentSecretMethod = null; // ✅ reset to default
+  renderSecretAuth();
+}
 
 function renderSecretAuth() {
   // ✅ Reset patterns (fix numbering issue)
@@ -1378,7 +1428,7 @@ function renderSecretAuth() {
   const area = document.getElementById("secretAuthArea");
 
   // ✅ Get current method (already forced to dot on refresh)
-  const method = APP.settings.secretMethod || "dot";
+  const method = currentSecretMethod || APP.settings.secretMethod || "dot";
 
   // ✅ Fix tab UI
   const tabs = document.querySelectorAll("#secretNotesLock .crazy-tab");
@@ -1560,8 +1610,8 @@ function switchSecretMethod(method) {
     tabs[index].classList.add("active");
   }
 
-  APP.settings.secretMethod = method;
-  saveData(APP);
+  // ✅ ONLY temporary change (not saved)
+  currentSecretMethod = method;
 
   renderSecretAuth();
 }
