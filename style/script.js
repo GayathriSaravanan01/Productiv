@@ -974,26 +974,25 @@ function toggleTask(id) {
   const t = APP.tasks.find((t) => t.id === id);
   if (!t) return;
 
-  if (!t.completed) {
-    t.completed = true;
-    t.completedAt = new Date().toISOString();
-
-    APP.totalPoints += 10;
-    logPoints(10, "Task completed");
-
-    showToast("+10 points! 🎉");
-  } else {
-    // ✅ Undo complete
-    t.completed = false;
-    t.completedAt = undefined;
-
-   APP.totalPoints = Math.max(0, APP.totalPoints - 10);
-logPoints(-10, "Task undone"); // ✅ ADD THIS
+  // ❌ Block if already completed
+  if (t.completed) {
+    showToast("Task already completed!");
+    return;
   }
+
+  // ✅ Mark as completed (only once)
+  t.completed = true;
+  t.completedAt = new Date().toISOString();
+
+  const pts = t.points || 10;
+  APP.totalPoints += pts;
+  logPoints(pts, "Task completed");
 
   saveData(APP);
   renderTasks();
   renderDashboard();
+
+  showToast(`+${pts} points! 🎉`);
 }
 
 function archiveTask(id) {
@@ -1186,21 +1185,13 @@ function completeHabit(id) {
     return showToast("Already done today!");
   }
 
-  // 🔥 IMPORTANT: check yesterday
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
-
-  if (h.completedDates.includes(yStr)) {
-    h.streak = (h.streak || 0) + 1; // continue streak
-  } else {
-    h.streak = 1; // reset streak
-  }
-
+  // ✅ Only push date
   h.completedDates.push(todayStr);
 
-  h.bestStreak = Math.max(h.bestStreak || 0, h.streak);
+  // ✅ SINGLE source of truth
+  validateHabitStreaks();
 
+  // ✅ Points
   APP.totalPoints += h.points;
   logPoints(h.points, "Habit: " + h.title);
 
@@ -1208,23 +1199,57 @@ function completeHabit(id) {
   renderHabits();
   renderDashboard();
 
-  showToast(`+${h.points} points! Streak: ${h.streak} 🔥`);
+  showToast(`+${h.points} points! 🔥`);
 }
+
 
 function validateHabitStreaks() {
   const todayStr = today();
 
   APP.habits.forEach((h) => {
-    if (!h.completedDates || !h.completedDates.length) return;
+    if (!h.completedDates || !h.completedDates.length) {
+      h.streak = 0;
+      h.bestStreak = h.bestStreak || 0;
+      return;
+    }
 
-    const lastDate = h.completedDates[h.completedDates.length - 1];
+    // Sort dates (important)
+    const dates = [...new Set(h.completedDates)].sort();
 
-    const diff =
+    let streak = 0;
+    let maxStreak = 0;
+    let prevDate = null;
+
+    dates.forEach((d) => {
+      if (!prevDate) {
+        streak = 1;
+      } else {
+        const diff =
+          (new Date(d) - new Date(prevDate)) / (1000 * 60 * 60 * 24);
+
+        if (diff === 1) {
+          streak++; // continuous
+        } else {
+          streak = 1; // reset
+        }
+      }
+
+      maxStreak = Math.max(maxStreak, streak);
+      prevDate = d;
+    });
+
+    // ✅ Check if last completed is yesterday or today
+    const lastDate = dates[dates.length - 1];
+    const diffFromToday =
       (new Date(todayStr) - new Date(lastDate)) / (1000 * 60 * 60 * 24);
 
-    if (diff > 1) {
-      h.streak = 0; // ❌ break streak
+    if (diffFromToday > 1) {
+      streak = 0; // streak broken
     }
+
+    // ✅ Assign values
+    h.streak = streak;
+    h.bestStreak = Math.max(h.bestStreak || 0, maxStreak);
   });
 
   saveData(APP);
@@ -1233,9 +1258,32 @@ function validateHabitStreaks() {
 
 
 function deleteHabit(id) {
+  const habit = APP.habits.find((h) => h.id === id);
+
+  if (habit) {
+    const ptsPerDay = habit.points || APP.settings.defaultHabitPoints || 5;
+
+    // ✅ total completions
+    const completedCount = habit.completedDates?.length || 0;
+
+    // ✅ total points to remove
+    const totalDeduct = ptsPerDay * completedCount;
+
+    APP.totalPoints -= totalDeduct;
+
+    // prevent negative
+    if (APP.totalPoints < 0) APP.totalPoints = 0;
+
+    logPoints(-totalDeduct, "Habit deleted (rollback)");
+  }
+
+  // remove habit
   APP.habits = APP.habits.filter((h) => h.id !== id);
+
   saveData(APP);
   renderHabits();
+  renderDashboard();
+
   showToast("Habit deleted");
 }
 function isHabitForToday(habit, todayStr) {
