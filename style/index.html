@@ -51,7 +51,7 @@
           </button>
           <button
             class="btn btn-secondary btn-full"
-            onclick="normalSignup()"
+            onclick="openSignupModal()"
             style="margin-top: 8px"
           >
             Create Account
@@ -1017,6 +1017,15 @@
                 <option value="color">🎨 Color Pattern</option>
                 <option value="dynamic">⏰ Dynamic Time</option>
               </select>
+            </div>
+            <div class="settings-row">
+              <div class="settings-info">
+                <h4>Change UserName</h4>
+                <p>Update your normal login username</p>
+              </div>
+              <button class="btn btn-secondary" onclick="openChangeUsername()">
+                Change
+              </button>
             </div>
             <div class="settings-row">
               <div class="settings-info">

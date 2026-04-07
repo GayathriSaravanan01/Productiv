@@ -521,36 +521,77 @@ function submitDynamicLogin() {
     loginSuccess();
   } else {
     showToast("Wrong password! Hint: HHMM + your base", "error");
-  }
+  } 
+}
+
+function openSignupModal() {
+  openModal(`
+    <h3>Create Account</h3>
+
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="signupUser" placeholder="Enter username">
+    </div>
+
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="signupPass" placeholder="Enter password">
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="signup()">Create</button>
+    </div>
+  `);
 }
 
 function normalLogin() {
-  const user = document.getElementById("loginUser").value.trim();
-  const pass = document.getElementById("loginPass").value;
-  if (!user || !pass) return showToast("Fill all fields", "error");
-  if (!APP.auth.username)
-    return showToast("No account exists. Create one first.", "error");
-  if (
-    user === APP.auth.username &&
-    simpleHash(pass) === APP.auth.passwordHash
-  ) {
-    loginSuccess();
-  } else {
-    showToast("Wrong credentials!", "error");
-  }
-}
+  const usernameInput = document.getElementById("loginUser").value.trim();
+  const passwordInput = document.getElementById("loginPass").value;
 
-function normalSignup() {
-  const user = document.getElementById("loginUser").value.trim();
-  const pass = document.getElementById("loginPass").value;
-  if (!user || !pass) return showToast("Fill all fields", "error");
-  if (pass.length < 4) return showToast("Password too short (min 4)", "error");
+  console.log("Stored:", APP.auth); // 🔥 DEBUG
+
+  if (!APP.auth || !APP.auth.username || !APP.auth.passwordHash) {
+    return showToast("Please create account first", "error");
+  }
+
+  if (usernameInput !== APP.auth.username) {
+    return showToast("Invalid username", "error");
+  }
+
+  if (simpleHash(passwordInput) !== APP.auth.passwordHash) {
+    return showToast("Wrong password", "error");
+  }
+
+  loginSuccess();
+}
+function handleSignup() {
+  const user = document.getElementById("signupUser").value.trim();
+  const pass = document.getElementById("signupPass").value;
+
+  if (!user || !pass) {
+    return showToast("Fill all fields", "error");
+  }
+
+  if (pass.length < 4) {
+    return showToast("Password must be at least 4 characters", "error");
+  }
+
+  // ✅ Ensure auth exists
+  if (!APP.auth) APP.auth = {};
+
   APP.auth.username = user;
   APP.auth.passwordHash = simpleHash(pass);
-  if (!APP.auth.secretKey) APP.auth.secretKey = uid() + uid();
+
+  if (!APP.auth.secretKey) {
+    APP.auth.secretKey = uid() + uid();
+  }
+
   saveData(APP);
-  showToast("Account created! 🎉");
-  loginSuccess();
+
+  showToast("Account created! Please login 👇");
+
+  closeModal(); // 👈 go back to login screen
 }
 
 function loginSuccess() {
@@ -558,8 +599,11 @@ function loginSuccess() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appWrapper").style.display = "flex";
   document.getElementById("fabBtn").style.display = "flex";
+
   showToast("Welcome back! 🚀");
-  initApp();
+
+  // ❌ REMOVE THIS
+  // initApp();
 }
 
 function skipLogin() {
@@ -1330,7 +1374,7 @@ function openHabitModal(editId) {
 
     <div class="form-group">
       <label>Points</label>
-      <input type="number" id="habitPoints" value="${h?.points || defaultPts}">
+      <input type="number" id="habitPoints" min="0" value="${h?.points || defaultPts}">
     </div>
 
     <div class="form-actions">
@@ -1353,7 +1397,12 @@ function saveHabit(editId) {
   if (!title) return showToast("Name required", "error");
 
   const frequency = document.getElementById("habitFreq").value;
-  const points = parseInt(document.getElementById("habitPoints").value) || 5;
+  const defaultPts = APP.settings.defaultHabitPoints || 5;
+
+let pointsInput = parseInt(document.getElementById("habitPoints").value);
+
+// ✅ If 0 or empty → use default
+const points = (!pointsInput || pointsInput === 0) ? defaultPts : pointsInput;
 
   let days = [];
 
@@ -2391,6 +2440,20 @@ function updateSecretMethod(val) {
   renderSecretAuth();
 }
 
+function openChangeUsername() {
+  openModal(`
+    <h3>Change Username</h3>
+    <div class="form-group">
+      <label>New Username</label>
+      <input type="text" id="newUsernameInput" placeholder="Enter new username">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="changeUsername()">Update</button>
+    </div>
+  `);
+}
+
 function openChangePassword() {
   openModal(`
     <h3>Change Password</h3>
@@ -2692,13 +2755,13 @@ function getAppLock() {
     ? decryptValue(APP.settings.appLock)
     : APP.settings.appLock;
 }
-
 // ===== INIT =====
 function initApp() {
-  // ✅ LOAD CORRECT STORAGE KEY
-  APP = loadData(); // 🔥 USE THIS (already correct logic)
+  APP = loadData();
 
-  // ✅ Safety fallback
+  // ✅ VERY IMPORTANT
+  if (!APP.auth) APP.auth = {};
+
   if (!APP.settings) APP.settings = {};
   if (!APP.settings.secretMethod) APP.settings.secretMethod = "dot";
 
@@ -2707,8 +2770,6 @@ function initApp() {
   processRecurringTasks();
   validateHabitStreaks();
   renderDashboard();
-
-  // ✅ Correct method UI
   renderSecretAuth();
 }
 
