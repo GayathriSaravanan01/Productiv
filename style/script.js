@@ -973,15 +973,24 @@ document.querySelectorAll(".matrix-col").forEach((col) => {
 function toggleTask(id) {
   const t = APP.tasks.find((t) => t.id === id);
   if (!t) return;
-  t.completed = !t.completed;
-  t.completedAt = t.completed ? new Date().toISOString() : undefined;
-  if (t.completed) {
+
+  if (!t.completed) {
+    t.completed = true;
+    t.completedAt = new Date().toISOString();
+
     APP.totalPoints += 10;
     logPoints(10, "Task completed");
+
     showToast("+10 points! 🎉");
   } else {
-    APP.totalPoints = Math.max(0, APP.totalPoints - 10);
+    // ✅ Undo complete
+    t.completed = false;
+    t.completedAt = undefined;
+
+   APP.totalPoints = Math.max(0, APP.totalPoints - 10);
+logPoints(-10, "Task undone"); // ✅ ADD THIS
   }
+
   saveData(APP);
   renderTasks();
   renderDashboard();
@@ -998,9 +1007,26 @@ function archiveTask(id) {
 }
 
 function deleteTask(id) {
-  APP.tasks = APP.tasks.filter((t) => t.id !== id);
+  const task = APP.tasks.find(t => t.id === id);
+
+  // ✅ If task was completed → remove points
+  if (task && task.completed) {
+    const pts = task.points || 10; // default fallback
+    APP.totalPoints -= pts;
+
+    // prevent negative points
+    if (APP.totalPoints < 0) APP.totalPoints = 0;
+
+    logPoints(-pts, "Task deleted (rollback)");
+  }
+
+  // remove task
+  APP.tasks = APP.tasks.filter(t => t.id !== id);
+
   saveData(APP);
   renderTasks();
+  renderDashboard();
+
   showToast("Task deleted");
 }
 
@@ -1081,6 +1107,34 @@ function saveTask(editId) {
 
 
 // ===== HABITS =====
+function updateHabitStreak(habit) {
+  if (!habit.completedDates || !habit.completedDates.length) {
+    habit.streak = 0;
+    return;
+  }
+
+  const sorted = habit.completedDates.sort();
+  let streak = 0;
+
+  let todayDate = new Date();
+  let checkDate = new Date(todayDate);
+
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const d = sorted[i];
+    const dStr = checkDate.toISOString().slice(0, 10);
+
+    if (d === dStr) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  habit.streak = streak;
+  habit.bestStreak = Math.max(habit.bestStreak || 0, streak);
+}
+
 function renderHabits() {
   const list = document.getElementById("habitsList");
    const todayStr = today();
@@ -1123,19 +1177,57 @@ const todayHabits = APP.habits.filter(h =>
 function completeHabit(id) {
   const h = APP.habits.find((h) => h.id === id);
   if (!h) return;
+
   if (!h.completedDates) h.completedDates = [];
+
   const todayStr = today();
-  if (h.completedDates.includes(todayStr))
+
+  if (h.completedDates.includes(todayStr)) {
     return showToast("Already done today!");
+  }
+
+  // 🔥 IMPORTANT: check yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = yesterday.toISOString().slice(0, 10);
+
+  if (h.completedDates.includes(yStr)) {
+    h.streak = (h.streak || 0) + 1; // continue streak
+  } else {
+    h.streak = 1; // reset streak
+  }
+
   h.completedDates.push(todayStr);
-  h.streak = (h.streak || 0) + 1;
+
   h.bestStreak = Math.max(h.bestStreak || 0, h.streak);
+
   APP.totalPoints += h.points;
   logPoints(h.points, "Habit: " + h.title);
+
   saveData(APP);
   renderHabits();
   renderDashboard();
+
   showToast(`+${h.points} points! Streak: ${h.streak} 🔥`);
+}
+
+function validateHabitStreaks() {
+  const todayStr = today();
+
+  APP.habits.forEach((h) => {
+    if (!h.completedDates || !h.completedDates.length) return;
+
+    const lastDate = h.completedDates[h.completedDates.length - 1];
+
+    const diff =
+      (new Date(todayStr) - new Date(lastDate)) / (1000 * 60 * 60 * 24);
+
+    if (diff > 1) {
+      h.streak = 0; // ❌ break streak
+    }
+  });
+
+  saveData(APP);
 }
 
 
@@ -1259,11 +1351,6 @@ function saveHabit(editId) {
 
 function editHabit(id) {
   openHabitModal(id);
-}
-function toggleWeekDays() {
-  const freq = document.getElementById("habitFreq").value;
-  document.getElementById("weekDaysBox").style.display =
-    freq === "weekly" ? "block" : "none";
 }
 
 // ===== NOTES (Full WYSIWYG) =====
@@ -1732,11 +1819,12 @@ function adjustGoalProgress(id, delta) {
   const g = APP.longTermGoals.find((g) => g.id === id);
   if (!g) return;
   g.progress = Math.max(0, Math.min(100, g.progress + delta));
-  if (g.progress === 100) {
-    APP.totalPoints += 50;
-    logPoints(50, "Goal completed");
-    showToast("Goal completed! +50 points! 🏆");
-  }
+  if (g.progress === 100 && !g.rewarded) {
+  APP.totalPoints += 50;
+  logPoints(50, "Goal completed");
+  g.rewarded = true; // ✅ prevent duplicate
+  showToast("Goal completed! +50 points! 🏆");
+}
   saveData(APP);
   renderGoals();
   renderDashboard();
@@ -2569,6 +2657,7 @@ function initApp() {
   applyTheme();
   applyAccentColor();
   processRecurringTasks();
+  validateHabitStreaks();
   renderDashboard();
 
   // ✅ Correct method UI
