@@ -302,6 +302,11 @@ body {
   border-color: var(--text);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
+.error-text {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 4px;
+}
 
 .crazy-sequence {
   display: flex;
@@ -1463,6 +1468,12 @@ body {
 .cal-cell.today {
   border-color: var(--primary);
   background: var(--primary-glow);
+}
+
+.cal-cell.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
 }
 .cal-cell.other-month {
   opacity: 0.3;

@@ -1,9 +1,14 @@
 // ===== DATA LAYER =====
 const STORAGE_KEY = "productiv_data";
 
+const DEFAULT_AUTH = {
+  username: simpleHash("Admin"),
+  passwordHash: simpleHash("admin123"),
+};
+
 const defaultData = {
   tasks: [],
-  habits: [],
+  habits: [], 
   generalNotes: [],
   secretNotes: [],
   longTermGoals: [],
@@ -15,14 +20,14 @@ const defaultData = {
     theme: "dark",
     accentColor: "#f59e0b",
     accentSecondary: "#f97316",
-    appLock: false,
+    appLock:encryptValue(true),
     secretMethod: "dot",
     defaultHabitPoints: 5,
     breakMinutes: 5,
   },
   auth: {
-    username: "",
-    passwordHash: "",
+    username:DEFAULT_AUTH.username,
+    passwordHash:DEFAULT_AUTH.passwordHash ,
     dotPattern: [],
     emojiPattern: [],
     colorPattern: [],
@@ -34,14 +39,37 @@ const defaultData = {
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return JSON.parse(JSON.stringify(defaultData));
 
-    const d = JSON.parse(raw);
+    // ✅ First time → return defaults WITH proper auth
+    if (!raw) {
+      const fresh = JSON.parse(JSON.stringify(defaultData));
 
+      // Ensure default auth is set
+      fresh.auth.username = DEFAULT_AUTH.username;
+      fresh.auth.passwordHash = DEFAULT_AUTH.passwordHash;
+
+      saveData(fresh); // ✅ persist immediately
+      return fresh;
+    }
+
+    let d = JSON.parse(raw);
+
+    // ✅ Ensure auth object exists
+    if (!d.auth) d.auth = {};
+
+    // ✅ FIX: Set default if empty OR invalid
+    if (!d.auth.username || d.auth.username.trim() === "") {
+      d.auth.username = DEFAULT_AUTH.username;
+    }
+
+    if (!d.auth.passwordHash || d.auth.passwordHash.trim() === "") {
+      d.auth.passwordHash = DEFAULT_AUTH.passwordHash;
+    }
+
+    // 🔓 Decrypt sensitive auth fields
     const key = d.auth?.secretKey || "";
 
-    // 🔓 Decrypt auth fields safely
-    if (d.auth && key) {
+    if (key) {
       try {
         d.auth.dotPattern = d.auth.dotPattern
           ? JSON.parse(decryptText(d.auth.dotPattern, key))
@@ -75,46 +103,62 @@ function loadData() {
       }
     }
 
-    // ✅ Merge defaults (important)
+    // ✅ Merge settings safely
     d.settings = { ...defaultData.settings, ...(d.settings || {}) };
-    d.auth = { ...defaultData.auth, ...(d.auth || {}) };
+
+    // ❗ IMPORTANT: Merge auth BUT keep corrected values
+    d.auth = {
+      ...defaultData.auth,
+      ...d.auth,
+      username: d.auth.username,
+      passwordHash: d.auth.passwordHash,
+    };
+
+    // ✅ SAVE FIXED DATA
+    saveData(d);
 
     return { ...defaultData, ...d };
-  } catch {
-    return JSON.parse(JSON.stringify(defaultData));
+
+  } catch (err) {
+    console.warn("Failed to load data, using defaults:", err);
+
+    const fresh = JSON.parse(JSON.stringify(defaultData));
+    fresh.auth.username = DEFAULT_AUTH.username;
+    fresh.auth.passwordHash = DEFAULT_AUTH.passwordHash;
+
+    return fresh;
   }
 }
 function saveData(data) {
-  // 🧠 Deep copy (avoid modifying original APP)
-  const copy = JSON.parse(JSON.stringify(data));
+  try {
+    const copy = JSON.parse(JSON.stringify(data));
 
-  // 🔑 Ensure secret key exists
-  if (!copy.auth.secretKey) {
-    copy.auth.secretKey = uid() + uid();
+    // Ensure secret key exists
+    if (!copy.auth.secretKey) {
+      copy.auth.secretKey = uid() + uid();
+    }
+
+    const key = copy.auth.secretKey;
+
+    // Encrypt only the sensitive pattern fields
+    copy.auth.dotPattern = encryptText(
+      JSON.stringify(copy.auth.dotPattern || []), 
+      key
+    );
+    copy.auth.emojiPattern = encryptText(
+      JSON.stringify(copy.auth.emojiPattern || []), 
+      key
+    );
+    copy.auth.colorPattern = encryptText(
+      JSON.stringify(copy.auth.colorPattern || []), 
+      key
+    );
+    copy.auth.dynamicBase = encryptText(copy.auth.dynamicBase || "", key);
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(copy));
+  } catch (err) {
+    console.error("Failed to save data:", err);
   }
-
-  const key = copy.auth.secretKey;
-
-  // 🔐 Encrypt auth fields
-  copy.auth.dotPattern = encryptText(
-    JSON.stringify(copy.auth.dotPattern || []),
-    key,
-  );
-
-  copy.auth.emojiPattern = encryptText(
-    JSON.stringify(copy.auth.emojiPattern || []),
-    key,
-  );
-
-  copy.auth.colorPattern = encryptText(
-    JSON.stringify(copy.auth.colorPattern || []),
-    key,
-  );
-
-  copy.auth.dynamicBase = encryptText(copy.auth.dynamicBase || "", key);
-
-  // ✅ SAVE ENCRYPTED DATA (IMPORTANT FIX)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(copy));
 }
 let APP = loadData();
 
@@ -125,7 +169,6 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ===== TOAST =====
 function showToast(msg, type = "success") {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -523,75 +566,60 @@ function submitDynamicLogin() {
     showToast("Wrong password! Hint: HHMM + your base", "error");
   } 
 }
-
-function openSignupModal() {
-  openModal(`
-    <h3>Create Account</h3>
-
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" id="signupUser" placeholder="Enter username">
-    </div>
-
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="signupPass" placeholder="Enter password">
-    </div>
-
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="signup()">Create</button>
-    </div>
-  `);
-}
-
 function normalLogin() {
   const usernameInput = document.getElementById("loginUser").value.trim();
   const passwordInput = document.getElementById("loginPass").value;
+  const userError = document.getElementById("loginUserError");
+  const passError = document.getElementById("loginPassError");
 
-  console.log("Stored:", APP.auth); // 🔥 DEBUG
+  // Clear errors
+  userError.textContent = "";
+  passError.textContent = "";
 
-  if (!APP.auth || !APP.auth.username || !APP.auth.passwordHash) {
-    return showToast("Please create account first", "error");
+  // ✅ Validate inputs
+  let hasError = false;
+
+  if (!usernameInput) {
+    userError.textContent = "Username is required";
+    hasError = true;
   }
 
-  if (usernameInput !== APP.auth.username) {
-    return showToast("Invalid username", "error");
+  if (!passwordInput) {
+    passError.textContent = "Password is required";
+    hasError = true;
   }
 
-  if (simpleHash(passwordInput) !== APP.auth.passwordHash) {
-    return showToast("Wrong password", "error");
+  if (hasError) return;
+
+  // ✅ Hash once
+  const usernameHash = simpleHash(usernameInput);
+  const passwordHash = simpleHash(passwordInput);
+
+  // ✅ Compare
+  const isUsernameValid = usernameHash === APP.auth.username;
+  const isPasswordValid = passwordHash === APP.auth.passwordHash;
+
+  // ✅ Handle errors cleanly
+  if (!isUsernameValid && !isPasswordValid) {
+    userError.textContent = "Invalid username";
+    passError.textContent = "Incorrect password";
+    return;
   }
 
+  if (!isUsernameValid) {
+    userError.textContent = "Invalid username";
+    return;
+  }
+
+  if (!isPasswordValid) {
+    passError.textContent = "Incorrect password";
+    return;
+  }
+
+  // ✅ Success
   loginSuccess();
-}
-function handleSignup() {
-  const user = document.getElementById("signupUser").value.trim();
-  const pass = document.getElementById("signupPass").value;
-
-  if (!user || !pass) {
-    return showToast("Fill all fields", "error");
-  }
-
-  if (pass.length < 4) {
-    return showToast("Password must be at least 4 characters", "error");
-  }
-
-  // ✅ Ensure auth exists
-  if (!APP.auth) APP.auth = {};
-
-  APP.auth.username = user;
-  APP.auth.passwordHash = simpleHash(pass);
-
-  if (!APP.auth.secretKey) {
-    APP.auth.secretKey = uid() + uid();
-  }
-
-  saveData(APP);
-
-  showToast("Account created! Please login 👇");
-
-  closeModal(); // 👈 go back to login screen
+  document.getElementById("loginUser").value = "";
+document.getElementById("loginPass").value = "";
 }
 
 function loginSuccess() {
@@ -604,14 +632,6 @@ function loginSuccess() {
 
   // ❌ REMOVE THIS
   // initApp();
-}
-
-function skipLogin() {
-  isLoggedIn = false;
-  document.getElementById("loginScreen").style.display = "none";
-  document.getElementById("appWrapper").style.display = "flex";
-  document.getElementById("fabBtn").style.display = "flex";
-  initApp();
 }
 
 function logoutApp() {
@@ -642,6 +662,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
       .forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     const page = btn.dataset.page;
+    localStorage.setItem("currentPage", page);
     document
       .querySelectorAll(".page")
       .forEach((p) => p.classList.remove("active"));
@@ -2142,10 +2163,12 @@ function renderPointsHistoryChart() {
 
 // ===== CALENDAR =====
 let calYear, calMonth;
+let selectedDate;
 {
   const now = new Date();
   calYear = now.getFullYear();
   calMonth = now.getMonth();
+  selectedDate = today();
 }
 
 function calNavMonth(delta) {
@@ -2199,6 +2222,14 @@ function renderCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${calYear}-${(calMonth + 1).toString().padStart(2, "0")}-${d.toString().padStart(2, "0")}`;
     const isToday = dateStr === todayStr;
+    const isSelected = dateStr === selectedDate;
+    let cellClass = "cal-cell";
+
+if (isSelected) {
+  cellClass += " active";   // selected date always wins
+} else if (isToday) {
+  cellClass += " today";    // only show today if not selected
+}
     const tasks = APP.tasks.filter(
       (t) =>
         t.deadline === dateStr ||
@@ -2214,10 +2245,10 @@ function renderCalendar() {
     habits.forEach(() => (dots += '<span class="cal-dot habit"></span>'));
     goals.forEach(() => (dots += '<span class="cal-dot goal"></span>'));
 
-    html += `<div class="cal-cell ${isToday ? "today" : ""}" onclick="showCalDay('${dateStr}')">
-      <div class="cal-day">${d}</div>
-      <div class="cal-dots">${dots}</div>
-    </div>`;
+    html += `<div class="${cellClass}" onclick="showCalDay('${dateStr}')">
+  <div class="cal-day">${d}</div>
+  <div class="cal-dots">${dots}</div>
+</div>`;
   }
 
   // Next month padding
@@ -2231,6 +2262,7 @@ function renderCalendar() {
 }
 
 function showCalDay(dateStr) {
+  selectedDate = dateStr;
   const detail = document.getElementById("calDayDetail");
   detail.style.display = "block";
   document.getElementById("calDayTitle").textContent = dateStr;
@@ -2267,6 +2299,7 @@ function showCalDay(dateStr) {
     html =
       '<div class="empty-state" style="padding:20px"><p>Nothing on this day</p></div>';
   document.getElementById("calDayContent").innerHTML = html;
+  renderCalendar();
 }
 
 // ===== POMODORO =====
@@ -2440,43 +2473,6 @@ function updateSecretMethod(val) {
   renderSecretAuth();
 }
 
-function openChangeUsername() {
-  openModal(`
-    <h3>Change Username</h3>
-    <div class="form-group">
-      <label>New Username</label>
-      <input type="text" id="newUsernameInput" placeholder="Enter new username">
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="changeUsername()">Update</button>
-    </div>
-  `);
-}
-
-function openChangePassword() {
-  openModal(`
-    <h3>Change Password</h3>
-    <div class="form-group"><label>New Password</label><input type="password" id="newPassInput" placeholder="Enter new password"></div>
-    <div class="form-group"><label>Confirm</label><input type="password" id="confirmPassInput" placeholder="Confirm password"></div>
-    <div class="form-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="changePassword()">Update</button>
-    </div>
-  `);
-}
-
-function changePassword() {
-  const p1 = document.getElementById("newPassInput").value;
-  const p2 = document.getElementById("confirmPassInput").value;
-  if (p1.length < 4) return showToast("Min 4 characters", "error");
-  if (p1 !== p2) return showToast("Passwords don't match", "error");
-  APP.auth.passwordHash = simpleHash(p1);
-  saveData(APP);
-  closeModal();
-  showToast("Password updated! 🔑");
-}
-
 function openSetPattern(type) {
   let inner = "";
   if (type === "dot") {
@@ -2632,16 +2628,39 @@ function confirmReset() {
 }
 
 function proceedReset() {
-  console.log("Clicked Yes Reset"); // DEBUG
   closeModal();
   resetData(); // your original function
 }
 
 function resetData() {
   APP = JSON.parse(JSON.stringify(defaultData));
+   APP.settings.appLock = encryptValue(true);
+  
+  // Force default hashed credentials after reset
+  APP.auth.username = DEFAULT_AUTH.username;
+  APP.auth.passwordHash = DEFAULT_AUTH.passwordHash;
+
   saveData(APP);
-  renderDashboard();
-  showToast("All data has been reset");
+  isLoggedIn = false;
+
+  // ✅ Re-check lock and update UI
+  const isLocked = getAppLock();
+
+  if (isLocked) {
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("appWrapper").style.display = "none";
+    document.getElementById("fabBtn").style.display = "none";
+
+    initLoginGrids(); // reset login UI
+  } else {
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("appWrapper").style.display = "flex";
+    document.getElementById("fabBtn").style.display = "flex";
+
+    renderDashboard();
+  }
+  
+  showToast("App reset complete!");
 }
 
 // ===== SEARCH =====
@@ -2751,19 +2770,45 @@ function decryptValue(value) {
 }
 
 function getAppLock() {
+  if (APP.settings.appLock === undefined) return true; // default ON
   return typeof APP.settings.appLock === "string"
     ? decryptValue(APP.settings.appLock)
     : APP.settings.appLock;
 }
 // ===== INIT =====
+// ===== INIT =====
 function initApp() {
   APP = loadData();
 
-  // ✅ VERY IMPORTANT
+  // ✅ Ensure auth exists
   if (!APP.auth) APP.auth = {};
+
+  const defaultUsername = DEFAULT_AUTH.username;
+  const defaultPassword = DEFAULT_AUTH.passwordHash;
+
+  // ✅ 1. If no auth → set default
+  if (!APP.auth.username || !APP.auth.passwordHash) {
+    APP.auth.username = defaultUsername;
+    APP.auth.passwordHash = defaultPassword;
+    saveData(APP);
+  }
+  // ✅ 2. If DEFAULT_AUTH changed → override existing
+  else if (
+    APP.auth.username !== defaultUsername ||
+    APP.auth.passwordHash !== defaultPassword
+  ) {
+    APP.auth.username = defaultUsername;
+    APP.auth.passwordHash = defaultPassword;
+    saveData(APP);
+  }
 
   if (!APP.settings) APP.settings = {};
   if (!APP.settings.secretMethod) APP.settings.secretMethod = "dot";
+  // ✅ ⭐ ADD THIS BLOCK (App Lock default ON)
+  if (APP.settings.appLock === undefined) {
+    APP.settings.appLock = encryptValue(true); // 🔒 ON by default
+    saveData(APP);
+  }
 
   applyTheme();
   applyAccentColor();
@@ -2775,11 +2820,45 @@ function initApp() {
 
 // Boot
 (function boot() {
+  initApp(); 
   initLoginGrids();
   applyTheme();
   applyAccentColor();
-  // Check if app lock is off, skip login
-  if (!getAppLock()) {
-    skipLogin();
+  const isLocked = getAppLock();
+
+  if (isLocked) {
+    // 🔒 SHOW LOGIN
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("appWrapper").style.display = "none";
+    document.getElementById("fabBtn").style.display = "none";
+
+    initLoginGrids();
+  } else {
+    // 🔓 SKIP LOGIN
+    isLoggedIn = true;
+
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("appWrapper").style.display = "flex";
+    document.getElementById("fabBtn").style.display = "flex";
+
+    renderDashboard();
   }
 })();
+
+
+window.addEventListener("load", () => {
+  const savedPage = localStorage.getItem("currentPage") || "dashboard";
+
+  // remove all active states
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+
+  // activate saved page
+  const activeBtn = document.querySelector(`[data-page="${savedPage}"]`);
+  if (activeBtn) activeBtn.classList.add("active");
+
+  const activePage = document.getElementById("page-" + savedPage);
+  if (activePage) activePage.classList.add("active");
+
+  renderPage(savedPage);
+});
