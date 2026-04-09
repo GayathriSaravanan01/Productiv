@@ -169,6 +169,14 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function setLoggedInState(isLoggedIn) {
+  if (isLoggedIn) {
+    localStorage.setItem("productiv_logged_in", "true");
+  } else {
+    localStorage.removeItem("productiv_logged_in");
+  }
+}
+
 function showToast(msg, type = "success") {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -624,26 +632,26 @@ document.getElementById("loginPass").value = "";
 
 function loginSuccess() {
   isLoggedIn = true;
+  setLoggedInState(true);
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("appWrapper").style.display = "flex";
   document.getElementById("fabBtn").style.display = "flex";
 
+  renderDashboard();
   showToast("Welcome back! 🚀");
-
-  // ❌ REMOVE THIS
-  // initApp();
 }
 
 function logoutApp() {
   isLoggedIn = false;
+  setLoggedInState(false);
   secretNotesUnlocked = false;
   document.getElementById("loginScreen").style.display = "flex";
   document.getElementById("appWrapper").style.display = "none";
   document.getElementById("fabBtn").style.display = "none";
-  // Reset login forms
   currentDotPattern = [];
   currentEmojiPattern = [];
   currentColorPattern = [];
+  localStorage.removeItem("currentPage");
   initLoginGrids();
 }
 
@@ -2825,8 +2833,9 @@ function initApp() {
   applyTheme();
   applyAccentColor();
   const isLocked = getAppLock();
+  const hasSession = localStorage.getItem("productiv_logged_in") === "true";
 
-  if (isLocked) {
+  if (isLocked && !hasSession) {
     // 🔒 SHOW LOGIN
     document.getElementById("loginScreen").style.display = "flex";
     document.getElementById("appWrapper").style.display = "none";
@@ -2834,8 +2843,9 @@ function initApp() {
 
     initLoginGrids();
   } else {
-    // 🔓 SKIP LOGIN
+    // 🔓 SKIP LOGIN or restore session
     isLoggedIn = true;
+    setLoggedInState(true);
 
     document.getElementById("loginScreen").style.display = "none";
     document.getElementById("appWrapper").style.display = "flex";

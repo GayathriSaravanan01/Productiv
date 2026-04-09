@@ -6,6 +6,10 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 /* ===== THEMES ===== */
 [data-theme="dark"] {
   --bg: #131620;
@@ -333,6 +337,7 @@ body {
 .app-wrapper {
   display: flex;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* ===== SIDEBAR ===== */
@@ -470,6 +475,7 @@ body {
   flex: 1;
   min-height: 100vh;
   padding: 28px 32px;
+  overflow-x: hidden;
 }
 
 .page {
@@ -1258,9 +1264,11 @@ body {
   padding: 20px;
   outline: none;
   overflow-y: auto;
+  overflow-x: hidden;
   font-size: 0.95rem;
   line-height: 1.7;
   min-height: 300px;
+  word-wrap: break-word;
 }
 
 .editor-content:focus {
@@ -1807,6 +1815,7 @@ select option {
   .main-content {
     margin-left: 80px;
     width: calc(100% - 80px);
+    padding: 20px 16px;
   }
 
   .sidebar-brand {
@@ -1815,11 +1824,20 @@ select option {
     align-items: center;
     display: flex;
     text-align: center;
+    position: relative;
   }
 
   .sidebar-brand h1,
   .sidebar-brand p {
     display: none;
+  }
+
+  .sidebar-brand::before {
+    content: "⚡";
+    font-size: 1.3rem;
+    display: block;
+    width: 100%;
+    text-align: center;
   }
 
   .toggle-btn {
@@ -1916,5 +1934,19 @@ select option {
 
   .calendar-grid .cal-cell {
     min-height: 50px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 16px 12px;
+  }
+
+  .matrix-grid {
+    gap: 12px;
+  }
+
+  .matrix-col {
+    padding: 12px;
   }
 }
